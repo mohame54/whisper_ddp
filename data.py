@@ -49,8 +49,7 @@ class DataLoaderLite:
 
         batch = []
         for data_idx in self.data_indices[start_idx: end_idx]:
-            img, label = self.data[data_idx]
-            batch.append((img, label))
+            batch.append(self.data[data_idx])
         
         if end_idx >= len(self.data):
            # if the epoch ends we should reshuffle the data

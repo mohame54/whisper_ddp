@@ -23,7 +23,7 @@ def train_epoch(
     opt.zero_grad()
     loss_accum = 0.0
 
-    for i,mels, inputs, targets in enumerate(loop):
+    for i,(mels, inputs, targets) in enumerate(loop):
         mels = mels.to(rank)
         inputs = {k:v.to(rank) for k, v in inputs}
         targets = {k:v.to(rank) for k, v in targets}

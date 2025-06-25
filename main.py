@@ -25,20 +25,21 @@ ddp_world_size = int(os.environ['WORLD_SIZE'])
 device = f'cuda:{ddp_local_rank}'
 torch.cuda.set_device(device)
 master_process = ddp_rank == 0
-vars = load_json("config.json", env_vars=True)
 
-collate_fn = create_collate_fn(vars['model_id'])
+config = load_json("config.json", env_vars=False)
 
-EPOCHS = os.environ['EPOCHS']
+collate_fn = create_collate_fn(config['model_id'])
 
-EPOCHS_LOGS = os.environ['EPOCHS_LOGS']
+EPOCHS = config['EPOCHS']
 
-ACCUM_STEPS =  os.environ['ACCUM_STEPS']
+EPOCHS_LOGS = config['EPOCHS_LOGS']
+
+ACCUM_STEPS =  config['ACCUM_STEPS']
 
 
-GLOBAL_TRAIN_BATCH_SIZE =  os.environ['GLOBAL_TRAIN_BATCH_SIZE']
+GLOBAL_TRAIN_BATCH_SIZE =  config['GLOBAL_TRAIN_BATCH_SIZE']
 TRAIN_BATCH_SIZE = GLOBAL_TRAIN_BATCH_SIZE // ddp_world_size
-VAL_BATCH_SIZE = os.environ['VAL_BATCH_SIZE']
+VAL_BATCH_SIZE = config['VAL_BATCH_SIZE']
 
 
 transformers.logging.set_verbosity_error()
@@ -46,8 +47,7 @@ warnings.filterwarnings("ignore")
 
 
 
-# Load config and HF permissions
-config = load_json("config.json")
+
 hf_permission(config.get('hf_perm', {}))
 api = HfApi()
 
@@ -58,22 +58,20 @@ train_loader, test_loader = get_dataloader_ddp(
     config['data'],
     config['model_id'],
     process_rank=ddp_rank,
-    num_processes=4,
+    num_processes=ddp_world_size,
     train_batch_size=GLOBAL_TRAIN_BATCH_SIZE,
     val_batch_size=VAL_BATCH_SIZE,
     collate_fn=collate_fn
 )
 # Load model
-Model = load_whisper_pretrained(config['model_id']).train()
+Model = load_whisper_pretrained(config['model_id']).cuda().train()
 for p in Model.parameters():
     if p.requires_grad:
         p.data = p.data.float()
 
 
 
-Opt = torch.optim.AdamW([p for p in Model.parameters() if p.requires_grad], lr=vars['lr'], weight_decay=vars['wd'])
-
-num_training_steps = config['epochs'] * (len(train_loader) + len(test_loader))
+Opt = torch.optim.AdamW([p for p in Model.parameters() if p.requires_grad], lr=config['lr'], weight_decay=config['wd'])
 
 
 Model = DDP(Model, device_ids=[ddp_local_rank])
@@ -100,7 +98,7 @@ for e in range(EPOCHS):
                     test_loader,
                     rank = ddp_rank,
                 )
-        if (e + 1) % config.get('EPOCHS_LOGS', 1) == 0 and ddp_rank == 0:
+        if ((e + 1) % config.get('EPOCHS_LOGS', 1)) == 0 and ddp_rank == 0:
             checkpoint_path = os.path.join(config['save_dir'], f"{config.get('checkpoint_name', 'checkpoint')}_epoch{e+1}")
             Model.model.save_pretrained(checkpoint_path)
             print(f"Saved model checkpoint: {checkpoint_path}")
@@ -110,6 +108,12 @@ for e in range(EPOCHS):
                     path_in_repo=config['hf_repo_path'],
                     repo_id=config['repo_id'],
                 )
+if config.get('push_hf', False) and ddp_rank == 0:
+    api.upload_folder(
+        folder_path=checkpoint_path,
+        path_in_repo=config['hf_repo_path'],
+        repo_id=config['repo_id'],
+    )
 
 
 destroy_process_group()
