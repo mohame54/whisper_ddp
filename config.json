@@ -1,0 +1,21 @@
+{
+    "data":"both",
+    "hf_perm":"",
+    "model_id":"openai/whisper-base",
+    "test_size":0.1,
+    "GLOBAL_TRAIN_BATCH_SIZE":32,
+    "VAL_BATCH_SIZE":16,
+    "EPOCHS": 5,
+    "EPOCHS_LOGS":2,
+    "ACCUM_STEPS":1,
+    "save_dir":"whisper_lora",
+    "checkpoint_name":"lora_code",
+    "repo_id":"Muhammed164/ASLM",
+    "hf_repo_path":"both_base_whisper_model",
+    "push_hf":true,
+    "r":32,
+   "lora_alpha":16,
+   "target_modules":["q_proj", "k_proj", "v_proj", "out_proj"],
+   "lora_dropout":0.3,
+   "bias":"none"
+}
